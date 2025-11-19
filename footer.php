@@ -4,7 +4,7 @@
 
 </body>
 <div class="footer">
-    <p>&copy; 2025 Baza Filmów. Wszelkie prawa zastrzeżone.</p>
+    <p>&copy; 2025 Kinoteka. Wszelkie prawa zastrzeżone.</p>
 </div>
 
 </html>

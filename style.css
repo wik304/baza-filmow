@@ -57,8 +57,15 @@ nav {
     color: #2c2c2c;
     font-size: 14px;
     font-weight: 600;
-    margin: 10px 0px;
-    padding: 10px 16px;
+    margin: 0;
+    padding: 8px 16px;
+}
+
+.nav-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
 }
 
 .nav-button:hover {

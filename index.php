@@ -66,15 +66,17 @@ include 'header.php';
     </div>
 
     <?php
-
     $slider_id = 'popular-slider';
     $slider_title = 'Popularne teraz';
     $slider_subtitle = 'Przeglądaj najgorętsze tytuły ostatnich miesięcy!';
 
-    $sql_popular = "SELECT id, title, poster_url, user_rating, critic_rating 
-                    FROM movies 
-                    ORDER BY popularity DESC 
+    $sql_popular = "SELECT m.id, m.title, m.poster_url,
+                           (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'user' AND rating > 0) AS user_rating,
+                           (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'critic' AND rating > 0) AS critic_rating
+                    FROM movies m
+                    ORDER BY m.popularity DESC 
                     LIMIT 10";
+
     $result_popular = $conn->query($sql_popular);
     $movies_array = [];
     if ($result_popular->num_rows > 0) {
@@ -82,21 +84,22 @@ include 'header.php';
             $movies_array[] = $row;
         }
     }
-
     include 'movie_slider.php';
     ?>
 
 
     <?php
-
     $slider_id = 'top-rated-slider';
     $slider_title = 'Najwyżej Oceniane';
     $slider_subtitle = 'Filmy z najlepszymi ocenami użytkowników';
 
-    $sql_top = "SELECT id, title, poster_url, user_rating, critic_rating 
-                FROM movies 
+    $sql_top = "SELECT m.id, m.title, m.poster_url,
+                       (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'user' AND rating > 0) AS user_rating,
+                       (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'critic' AND rating > 0) AS critic_rating
+                FROM movies m
                 ORDER BY user_rating DESC 
                 LIMIT 10";
+
     $result_top = $conn->query($sql_top);
     $movies_array = [];
     if ($result_top->num_rows > 0) {
@@ -104,20 +107,21 @@ include 'header.php';
             $movies_array[] = $row;
         }
     }
-
     include 'movie_slider.php';
     ?>
 
     <?php
-
     $slider_id = 'critics-choice-slider';
     $slider_title = 'Uznane przez Krytyków';
     $slider_subtitle = 'Filmy z najlepszymi ocenami recenzentów';
 
-    $sql_critics = "SELECT id, title, poster_url, user_rating, critic_rating 
-                FROM movies 
-                ORDER BY critic_rating DESC 
-                LIMIT 10";
+    $sql_critics = "SELECT m.id, m.title, m.poster_url,
+                           (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'user' AND rating > 0) AS user_rating,
+                           (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating_type = 'critic' AND rating > 0) AS critic_rating
+                    FROM movies m
+                    ORDER BY critic_rating DESC 
+                    LIMIT 10";
+
     $result_critics = $conn->query($sql_critics);
     $movies_array = [];
     if ($result_critics->num_rows > 0) {
@@ -125,7 +129,6 @@ include 'header.php';
             $movies_array[] = $row;
         }
     }
-
     include 'movie_slider.php';
     ?>
 </main>

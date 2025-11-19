@@ -1,369 +1,530 @@
 <?php
 session_start();
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
 
 include 'db_connect.php';
 include 'header.php';
 
-$user_id = $_SESSION['user_id'];
+echo '<link rel="stylesheet" href="profile.css">';
 
-$sql = "SELECT username, email, phone_number, role, created_at FROM users WHERE id = ?";
+$logged_in_user_id = $_SESSION['user_id'] ?? null;
+$profile_user_id = 0;
+
+if (isset($_GET['id']) && (int)$_GET['id'] > 0) {
+    $profile_user_id = (int)$_GET['id'];
+} elseif ($logged_in_user_id) {
+    $profile_user_id = $logged_in_user_id;
+}
+
+if ($profile_user_id === 0) {
+    echo "<main><div class='main-content'><p>Nie znaleziono użytkownika.</p></div></main>";
+    include 'footer.php';
+    exit();
+}
+
+$update_description_success = false;
+$update_description_error = '';
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['update_critic_description']) && $logged_in_user_id === $profile_user_id) {
+    $sql_check_role = "SELECT role FROM users WHERE id = ?";
+    $stmt_check_role = $conn->prepare($sql_check_role);
+    $stmt_check_role->bind_param("i", $logged_in_user_id);
+    $stmt_check_role->execute();
+    $user_role_result = $stmt_check_role->get_result()->fetch_assoc();
+
+    if ($user_role_result && $user_role_result['role'] === 'critic') {
+        $new_description = trim($_POST['critic_description']);
+        if (strlen($new_description) <= 100) {
+            $sql_update = "UPDATE users SET critic_description = ? WHERE id = ?";
+            $stmt_update = $conn->prepare($sql_update);
+            $stmt_update->bind_param("si", $new_description, $logged_in_user_id);
+            if ($stmt_update->execute()) {
+                $update_description_success = true;
+            } else {
+                $update_description_error = 'Błąd podczas aktualizacji opisu.';
+            }
+        } else {
+            $update_description_error = 'Opis nie może przekraczać 100 znaków.';
+        }
+    }
+}
+$sql = "SELECT username, email, phone_number, role, created_at, profile_banner_url, critic_description FROM users WHERE id = ?";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
+$stmt->bind_param("i", $profile_user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $stmt->close();
 
-$phone_update_success = false;
-$phone_update_error = '';
-$email_update_success = false;
-$email_update_error = '';
+$stats = [
+    'ratings' => 0,
+    'watchlist' => 0,
+    'favorites' => 0
+];
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+$sql_ratings = "SELECT COUNT(*) as count FROM ratings WHERE user_id = ? AND rating > 0";
+$stmt_ratings = $conn->prepare($sql_ratings);
+$stmt_ratings->bind_param("i", $profile_user_id);
+$stmt_ratings->execute();
+$stats['ratings'] = $stmt_ratings->get_result()->fetch_assoc()['count'];
+$stmt_ratings->close();
 
-    if (isset($_POST['phone_number'])) {
-        $phone_number = trim($_POST['phone_number']);
+$sql_lists = "SELECT list_type, COUNT(*) as count FROM user_movie_lists WHERE user_id = ? GROUP BY list_type";
+$stmt_lists = $conn->prepare($sql_lists);
+$stmt_lists->bind_param("i", $profile_user_id);
+$stmt_lists->execute();
+$result_lists = $stmt_lists->get_result();
+while ($row = $result_lists->fetch_assoc()) {
+    if ($row['list_type'] === 'watchlist') $stats['watchlist'] = $row['count'];
+    if ($row['list_type'] === 'favorite') $stats['favorites'] = $row['count'];
+}
+$stmt_lists->close();
 
-        if (!empty($phone_number) && !preg_match('/^[0-9 \-+]{9,15}$/', $phone_number)) {
-            $phone_update_error = 'Nieprawidłowy format numeru telefonu.';
-        } else {
-            $sql_update = "UPDATE users SET phone_number = ? WHERE id = ?";
-            $stmt_update = $conn->prepare($sql_update);
-            $phone_to_db = !empty($phone_number) ? $phone_number : NULL;
-            $stmt_update->bind_param("si", $phone_to_db, $user_id);
-
-            if ($stmt_update->execute()) {
-                $phone_update_success = true;
-                $user['phone_number'] = $phone_to_db;
-            } else {
-                $phone_update_error = 'Błąd podczas aktualizacji. Spróbuj ponownie.';
-            }
-            $stmt_update->close();
-        }
-    }
-
-    if (isset($_POST['new_email'])) {
-        $new_email = trim($_POST['new_email']);
-
-        if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
-            $email_update_error = 'Nieprawidłowy format adresu e-mail.';
-        } else {
-            $sql_check = "SELECT id FROM users WHERE email = ? AND id != ?";
-            $stmt_check = $conn->prepare($sql_check);
-            $stmt_check->bind_param("si", $new_email, $user_id);
-            $stmt_check->execute();
-            $result_check = $stmt_check->get_result();
-
-            if ($result_check->num_rows > 0) {
-                $email_update_error = 'Ten adres e-mail jest już używany przez inne konto.';
-            } else {
-                $sql_update = "UPDATE users SET email = ? WHERE id = ?";
-                $stmt_update = $conn->prepare($sql_update);
-                $stmt_update->bind_param("si", $new_email, $user_id);
-
-                if ($stmt_update->execute()) {
-                    $email_update_success = true;
-                    $user['email'] = $new_email;
-                } else {
-                    $email_update_error = 'Błąd podczas aktualizacji. Spróbuj ponownie.';
-                }
-                $stmt_update->close();
-            }
-            $stmt_check->close();
-        }
+$all_movies_for_banner = [];
+$sql_all_movies = "SELECT id, title, poster_url FROM movies ORDER BY popularity DESC, title ASC";
+$result_all_movies = $conn->query($sql_all_movies);
+if ($result_all_movies) {
+    while ($row = $result_all_movies->fetch_assoc()) {
+        $all_movies_for_banner[] = $row;
     }
 }
 
+$rating_type_to_fetch = ($user['role'] === 'critic') ? 'critic' : 'user';
+
+$recent_reviews = [];
+$sql_reviews = "SELECT r.id as rating_id, r.rating, r.comment, r.created_at, m.title, m.id as movie_id,
+                       (SELECT COUNT(*) FROM user_movie_lists uml WHERE uml.user_id = r.user_id AND uml.movie_id = r.movie_id AND uml.list_type = 'favorite') as is_favorite,
+                       (SELECT COUNT(*) FROM review_likes rl WHERE rl.rating_id = r.id) AS like_count,
+                       (SELECT COUNT(*) FROM review_likes rl WHERE rl.rating_id = r.id AND rl.user_id = ?) AS user_liked
+                FROM ratings r
+                JOIN movies m ON r.movie_id = m.id
+                WHERE r.user_id = ? AND r.rating_type = ? AND r.comment IS NOT NULL AND r.comment != ''
+                ORDER BY r.created_at DESC";
+$stmt_reviews = $conn->prepare($sql_reviews);
+$stmt_reviews->bind_param("iis", $logged_in_user_id, $profile_user_id, $rating_type_to_fetch);
+$stmt_reviews->execute();
+$result_reviews = $stmt_reviews->get_result();
+while ($row = $result_reviews->fetch_assoc()) {
+    $recent_reviews[] = $row;
+}
+$stmt_reviews->close();
+
+$watchlist_movies = [];
+$sql_watchlist = "SELECT m.id, m.title, m.poster_url, m.release_year
+                  FROM user_movie_lists uml
+                  JOIN movies m ON uml.movie_id = m.id
+                  WHERE uml.user_id = ? AND uml.list_type = 'watchlist'
+                  ORDER BY m.popularity DESC";
+$stmt_watchlist = $conn->prepare($sql_watchlist);
+$stmt_watchlist->bind_param("i", $profile_user_id);
+$stmt_watchlist->execute();
+$result_watchlist = $stmt_watchlist->get_result();
+while ($row = $result_watchlist->fetch_assoc()) {
+    $watchlist_movies[] = $row;
+}
+$stmt_watchlist->close();
+
+$favorite_movies = [];
+$sql_favorites = "SELECT m.id, m.title, m.poster_url, m.release_year
+                  FROM user_movie_lists uml
+                  JOIN movies m ON uml.movie_id = m.id
+                  WHERE uml.user_id = ? AND uml.list_type = 'favorite'
+                  ORDER BY m.popularity DESC";
+$stmt_favorites = $conn->prepare($sql_favorites);
+$stmt_favorites->bind_param("i", $profile_user_id);
+$stmt_favorites->execute();
+$result_favorites = $stmt_favorites->get_result();
+while ($row = $result_favorites->fetch_assoc()) {
+    $favorite_movies[] = $row;
+}
+$stmt_favorites->close();
+
+$following_users = [];
+$sql_following = "SELECT u.id, u.username
+                  FROM followers f
+                  JOIN users u ON f.followed_id = u.id
+                  WHERE f.follower_id = ?
+                  ORDER BY u.username ASC";
+$stmt_following = $conn->prepare($sql_following);
+$stmt_following->bind_param("i", $profile_user_id);
+$stmt_following->execute();
+$result_following = $stmt_following->get_result();
+while ($row = $result_following->fetch_assoc()) {
+    $following_users[] = $row;
+}
+$stmt_following->close();
+
+// Pobierz zdobyte osiągnięcia
+$achievements = [];
+$sql_achievements = "SELECT a.name, a.description, a.icon_url
+                     FROM user_achievements ua
+                     JOIN achievements a ON ua.achievement_id = a.id
+                     WHERE ua.user_id = ?
+                     ORDER BY ua.earned_at DESC";
+$stmt_achievements = $conn->prepare($sql_achievements);
+$stmt_achievements->bind_param("i", $profile_user_id);
+$stmt_achievements->execute();
+$result_achievements = $stmt_achievements->get_result();
+while ($row = $result_achievements->fetch_assoc()) {
+    $achievements[] = $row;
+}
 $conn->close();
 ?>
 
-<style>
-    main .form-container {
-        max-width: 900px;
-        background: none;
-        box-shadow: none;
-        padding: 0;
-        margin: 2rem auto;
-    }
-
-    .profile-page {
-        display: flex;
-        gap: 2rem;
-    }
-
-    .profile-sidebar {
-        flex-basis: 30%;
-        min-width: 200px;
-    }
-
-    .avatar-card {
-        background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        padding: 2rem;
-        text-align: center;
-    }
-
-    .profile-avatar {
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        object-fit: cover;
-        margin-bottom: 1rem;
-        border: 4px solid #f0f0f0;
-    }
-
-    .avatar-card h2 {
-        font-size: 1.4rem;
-        color: #2c2c2c;
-        margin: 0;
-    }
-
-    .avatar-card .user-role {
-        font-size: 0.9rem;
-        color: #777;
-        text-transform: capitalize;
-    }
-
-    .profile-content {
-        flex-basis: 70%;
-    }
-
-    .profile-card {
-        background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        margin-bottom: 1.5rem;
-    }
-
-    .profile-card h3 {
-        font-size: 1.2rem;
-        padding: 1.5rem;
-        margin: 0;
-        border-bottom: 1px solid #f0f0f0;
-    }
-
-    .info-group {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid #f0f0f0;
-    }
-
-    .info-group:last-child {
-        border-bottom: none;
-    }
-
-    .info-label {
-        font-weight: 600;
-        color: #555;
-    }
-
-    .info-value {
-        color: #2c2c2c;
-    }
-
-    .edit-btn,
-    .cancel-btn {
-        background: none;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 0.3rem 0.8rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .edit-btn:hover {
-        background: #f4f4f4;
-        border-color: #bbb;
-    }
-
-    .edit-form {
-        padding: 1.5rem;
-    }
-
-    .form-group label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        display: block;
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="email"] {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 1rem;
-    }
-
-    .form-actions {
-        display: flex;
-        gap: 0.5rem;
-        justify-content: flex-start;
-        margin-top: 1rem;
-    }
-
-    .cancel-btn {
-        background-color: #f0f0f0;
-    }
-
-    .cancel-btn:hover {
-        background-color: #e0e0e0;
-    }
-
-    .message {
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-        margin-bottom: 1.5rem;
-        font-weight: 500;
-    }
-
-    .success-message {
-        background-color: #e6ffe6;
-        color: #006600;
-        border: 1px solid #5cd65c;
-    }
-
-    .error-message {
-        background-color: #ffeeee;
-        color: #cc0000;
-        border: 1px solid #ff9999;
-    }
-</style>
-
 <main>
-    <div class="form-container">
-        <div class="profile-page">
-            <aside class="profile-sidebar">
-                <div class="avatar-card">
-                    <img src="uploads/avatar-default.png" alt="Avatar użytkownika" class="profile-avatar">
-                    <h2><?php echo htmlspecialchars($user['username']); ?></h2>
-                    <p class="user-role"><?php echo htmlspecialchars($user['role']); ?></p>
+    <div class="profile-banner-wrapper">
+        <div class="profile-banner">
+            <div id="profile-banner-background" class="profile-banner-background" style="<?php if (!empty($user['profile_banner_url'])) echo 'background-image: url(\'' . htmlspecialchars($user['profile_banner_url']) . '\');'; ?>"></div>
+            <?php
+            if ($update_description_success) echo '<div class="inline-message success">Opis został zaktualizowany!</div>';
+            if (!empty($update_description_error)) echo '<div class="inline-message error">' . htmlspecialchars($update_description_error) . '</div>';
+            ?>
+            <?php if ($logged_in_user_id === $profile_user_id): ?>
+                <button id="change-banner-btn" class="change-banner-btn"><i class="fa-solid fa-image"></i> <span>Zmień tło</span></button>
+                <div class="profile-banner-overlay">
+                    <a href="settings.php" class="settings-link" title="Ustawienia konta">
+                        <i class="fa-solid fa-cog"></i>
+                    </a>
                 </div>
-            </aside>
-
-            <section class="profile-content">
-
-                <?php
-                if ($phone_update_success) {
-                    echo '<div class="message success-message">Numer telefonu został zaktualizowany!</div>';
-                }
-                if (!empty($phone_update_error)) {
-                    echo '<div class="message error-message">' . htmlspecialchars($phone_update_error) . '</div>';
-                }
-                if ($email_update_success) {
-                    echo '<div class="message success-message">Adres e-mail został zaktualizowany!</div>';
-                }
-                if (!empty($email_update_error)) {
-                    echo '<div class="message error-message">' . htmlspecialchars($email_update_error) . '</div>';
-                }
-                ?>
-
-                <div class="profile-card">
-                    <h3>Informacje o koncie</h3>
-
-                    <div class="info-group" id="email-display-group">
-                        <span class="info-label">Adres e-mail</span>
-                        <span class="info-value"><?php echo htmlspecialchars($user['email']); ?></span>
-                        <button type="button" class="edit-btn" id="edit-email-btn">Edytuj</button>
-                    </div>
-
-                    <form action="profile.php" method="POST" class="edit-form" id="email-edit-form" style="display: none;">
-                        <div class="form-group">
-                            <label for="new_email">Nowy adres e-mail:</label>
-                            <input type="email" id="new_email" name="new_email" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>">
+            <?php endif; ?>
+            <div class="main-content">
+                <div class="form-container">
+                    <div class="avatar-card">
+                        <img src="uploads/avatar-default.png" alt="Avatar użytkownika" class="profile-avatar">
+                        <div class="avatar-info">
+                            <div class="profile-username"><?php echo htmlspecialchars($user['username']); ?></div>
+                            <?php if ($user['role'] === 'critic'): ?>
+                                <div id="critic-description-wrapper" class="critic-description-wrapper">
+                                    <span id="critic-description-text" class="critic-description-text">
+                                        <?php echo !empty($user['critic_description']) ? nl2br(htmlspecialchars($user['critic_description'])) : 'Kliknij, aby dodać opis...'; ?>
+                                    </span>
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <div class="form-actions">
-                            <button type="submit" class="submit-btn">Zapisz zmiany</button>
-                            <button type="button" class="cancel-btn" id="cancel-email-btn">Anuluj</button>
-                        </div>
-                    </form>
-
-                    <div class="info-group" id="phone-display-group">
-                        <span class="info-label">Numer telefonu</span>
-                        <span class="info-value"><?php echo htmlspecialchars($user['phone_number'] ?? 'Nie podano'); ?></span>
-                        <button type="button" class="edit-btn" id="edit-phone-btn">Edytuj</button>
-                    </div>
-
-                    <form action="profile.php" method="POST" class="edit-form" id="phone-edit-form" style="display: none;">
-                        <div class="form-group">
-                            <label for="phone_number">Numer telefonu:</label>
-                            <input type="text" id="phone_number" name="phone_number" placeholder="np. 123 456 789" value="<?php echo htmlspecialchars($user['phone_number'] ?? ''); ?>">
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="submit-btn">Zapisz zmiany</button>
-                            <button type="button" class="cancel-btn" id="cancel-phone-btn">Anuluj</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="profile-card">
-                    <h3>Status konta</h3>
-                    <div class="info-group">
-                        <span class="info-label">Data dołączenia</span>
-                        <span class="info-value">
-                            <?php
-                            $date = new DateTime($user['created_at']);
-                            echo $date->format('d F Y');
-                            ?>
-                        </span>
                     </div>
                 </div>
+            </div>
+        </div>
 
-            </section>
+        <div class="profile-stats-box">
+            <div class="stats-item">
+                <div class="stat-number"><?php echo $stats['ratings']; ?></div>
+                <div class="stat-label">Oceny</div>
+            </div>
+            <div class="stats-item">
+                <div class="stat-number"><?php echo $stats['watchlist']; ?></div>
+                <div class="stat-label">Chce zobaczyć</div>
+            </div>
+            <div class="stats-item">
+                <div class="stat-number"><?php echo $stats['favorites']; ?></div>
+                <div class="stat-label">Ulubione</div>
+            </div>
         </div>
     </div>
 </main>
+
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="margin: 16px;">
+        <?php if (!empty($achievements)): ?>
+            <section class="profile-content-section" style="max-width: 800px; margin-bottom: 2rem;">
+                <h3>Osiągnięcia</h3>
+                <div class="achievements-grid">
+                    <?php foreach ($achievements as $achievement): ?>
+                        <div class="achievement-item" title="<?php echo htmlspecialchars($achievement['name']); ?>: <?php echo htmlspecialchars($achievement['description']); ?>">
+                            <img src="<?php echo htmlspecialchars($achievement['icon_url']); ?>" alt="<?php echo htmlspecialchars($achievement['name']); ?>">
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if (!empty($recent_reviews)): ?>
+            <section class="profile-content-section" style="max-width: 800px; margin-bottom: 2rem;">
+                <h3>Oceny</h3>
+                <div class="user-reviews-container">
+                    <?php
+                    $reviews_to_show = array_slice($recent_reviews, 0, 3);
+                    foreach ($reviews_to_show as $review):
+                    ?>
+                        <div class="user-review-item">
+                            <div class="user-review-header" style="margin-bottom: 1rem;">
+                                <span class="review-author">
+                                    Recenzja filmu <?php echo htmlspecialchars($review['title']); ?>
+                                </span>
+                                <?php if ($review['rating'] > 0): ?>
+                                    <div class="review-rating-dot">&middot;</div>
+                                    <div class="review-rating-simple">
+                                        <span><?php echo number_format((float)$review['rating'], 0); ?></span>
+                                        <i class="fa-solid fa-star"></i>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($review['is_favorite']): ?>
+                                    <div class="review-rating-dot">&middot;</div>
+                                    <i class="fa-solid fa-heart review-favorite-icon" title="Ulubiony film użytkownika"></i>
+                                <?php endif; ?>
+                            </div>
+                            <p class="review-comment"><?php echo nl2br(htmlspecialchars($review['comment'])); ?></p>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div class="review-actions">
+                                    <div class="like-btn <?php if ($review['user_liked']) echo 'liked'; ?>" data-rating-id="<?php echo $review['rating_id']; ?>" role="button" tabindex="0">
+                                        <span class="like-text">Lubię to!</span>
+                                        <span class="like-count"><?php echo $review['like_count']; ?></span>
+                                        <i class="fa-solid fa-thumbs-up"></i>
+                                    </div>
+                                </div>
+                                <div class="review-footer">
+                                    <span class="review-date">
+                                        <?php
+                                        $date = new DateTime($review['created_at']);
+                                        echo $date->format('d.m.Y H:i');
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php if (count($recent_reviews) > 3): ?>
+                    <div style="text-align: center; margin-top: 2rem;">
+                        <a href="all_reviews.php?user_id=<?php echo $profile_user_id; ?>" class="see-more-reviews-link">
+                            <span>Pokaż wszystkie opinie</span>
+                            <span class="review-count-badge"><?php echo count($recent_reviews); ?></span>
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </section>
+        <?php endif; ?>
+
+        <?php if (!empty($favorite_movies)): ?>
+            <section class="profile-content-section">
+                <h3>Ulubione</h3>
+                <div class="movies-grid">
+                    <?php foreach ($favorite_movies as $movie): ?>
+                        <div class="movie-grid-item">
+                            <a href="movie.php?id=<?php echo $movie['id']; ?>">
+                                <img src="<?php echo htmlspecialchars($movie['poster_url']); ?>" alt="Plakat filmu <?php echo htmlspecialchars($movie['title']); ?>">
+                                <h4><?php echo htmlspecialchars($movie['title']); ?></h4>
+                                <p><?php echo htmlspecialchars($movie['release_year']); ?></p>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if (!empty($watchlist_movies)): ?>
+            <section class="profile-content-section">
+                <h3>Chcę obejrzeć</h3>
+                <div class="movies-grid">
+                    <?php foreach ($watchlist_movies as $movie): ?>
+                        <div class="movie-grid-item">
+                            <a href="movie.php?id=<?php echo $movie['id']; ?>">
+                                <img src="<?php echo htmlspecialchars($movie['poster_url']); ?>" alt="Plakat filmu <?php echo htmlspecialchars($movie['title']); ?>">
+                                <h4><?php echo htmlspecialchars($movie['title']); ?></h4>
+                                <p><?php echo htmlspecialchars($movie['release_year']); ?></p>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if (!empty($following_users)): ?>
+            <section class="profile-content-section">
+                <h3>Obserwowani użytkownicy</h3>
+                <div class="users-grid">
+                    <?php foreach ($following_users as $followed_user): ?>
+                        <div class="user-grid-item">
+                            <a href="profile.php?id=<?php echo $followed_user['id']; ?>">
+                                <img src="uploads/avatar-default.png" alt="Avatar użytkownika <?php echo htmlspecialchars($followed_user['username']); ?>">
+                                <h4><?php echo htmlspecialchars($followed_user['username']); ?></h4>
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php if ($logged_in_user_id === $profile_user_id && $user['role'] === 'critic'): ?>
+<div id="description-modal-overlay" class="modal-overlay">
+    <div class="modal-box description-modal">
+        <h3 style="margin-bottom: 1rem;">Edytuj swój opis</h3>
+        <form id="critic-description-form" action="profile.php?id=<?php echo $profile_user_id; ?>" method="POST">
+            <textarea name="critic_description" class="critic-description-textarea" placeholder="Napisz kilka słów o sobie, swoich zainteresowaniach filmowych..." maxlength="100"><?php echo htmlspecialchars($user['critic_description'] ?? ''); ?></textarea>
+            <div class="form-actions">
+                <button type="submit" name="update_critic_description" class="submit-btn">Zapisz</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($logged_in_user_id === $profile_user_id): ?>
+<div id="banner-modal-overlay" class="modal-overlay">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div class="modal-title-group">
+                <h3>Wybierz tło</h3>
+                <button id="remove-banner-btn" class="remove-banner-icon <?php if (empty($user['profile_banner_url'])) echo 'hidden'; ?>" title="Usuń tło">&times;</button>
+            </div>
+            <div class="modal-search-container">
+                <input type="search" id="modal-search-input" placeholder="Szukaj">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+        </div>
+        <div id="posters-grid" class="posters-grid">
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php
 include 'footer.php';
 ?>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const editPhoneBtn = document.getElementById('edit-phone-btn');
-        const cancelPhoneBtn = document.getElementById('cancel-phone-btn');
-        const displayPhoneGroup = document.getElementById('phone-display-group');
-        const editPhoneForm = document.getElementById('phone-edit-form');
+<?php if ($logged_in_user_id === $profile_user_id): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    const allMovies = <?php echo json_encode($all_movies_for_banner); ?>;
+    const changeBannerBtn = document.getElementById('change-banner-btn');
+    const modalOverlay = document.getElementById('banner-modal-overlay');
+    const profileBannerBg = document.getElementById('profile-banner-background');
+    const removeBannerBtn = document.getElementById('remove-banner-btn');
+    const searchInput = document.getElementById('modal-search-input');
+    const postersGrid = document.getElementById('posters-grid');
+    
+    changeBannerBtn.addEventListener('click', () => {
+        modalOverlay.classList.add('visible');
+    });
 
-        if (editPhoneBtn && cancelPhoneBtn && displayPhoneGroup && editPhoneForm) {
-            editPhoneBtn.addEventListener('click', function() {
-                displayPhoneGroup.style.display = 'none';
-                editPhoneForm.style.display = 'block';
-            });
-
-            cancelPhoneBtn.addEventListener('click', function() {
-                editPhoneForm.style.display = 'none';
-                displayPhoneGroup.style.display = 'flex';
-            });
-        }
-
-        const editEmailBtn = document.getElementById('edit-email-btn');
-        const cancelEmailBtn = document.getElementById('cancel-email-btn');
-        const displayEmailGroup = document.getElementById('email-display-group');
-        const editEmailForm = document.getElementById('email-edit-form');
-
-        if (editEmailBtn && cancelEmailBtn && displayEmailGroup && editEmailForm) {
-            editEmailBtn.addEventListener('click', function() {
-                displayEmailGroup.style.display = 'none';
-                editEmailForm.style.display = 'block';
-            });
-
-            cancelEmailBtn.addEventListener('click', function() {
-                editEmailForm.style.display = 'none';
-                displayEmailGroup.style.display = 'flex';
-            });
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            modalOverlay.classList.remove('visible');
         }
     });
+
+    function renderPosters(moviesToShow) {
+        postersGrid.innerHTML = '';
+        const moviesToDisplay = moviesToShow.slice(0, 12);
+
+        if (moviesToDisplay.length === 0) {
+            postersGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center;">Brak pasujących filmów.</p>';
+            return;
+        }
+
+        moviesToDisplay.forEach(movie => {
+            const posterDiv = document.createElement('div');
+            posterDiv.className = 'poster-item';
+            posterDiv.dataset.posterUrl = movie.poster_url;
+
+            const posterImg = document.createElement('img');
+            posterImg.src = movie.poster_url;
+            posterImg.alt = `Plakat filmu ${movie.title}`;
+            
+            posterDiv.appendChild(posterImg);
+            postersGrid.appendChild(posterDiv);
+        });
+    }
+
+    searchInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        if (query.length > 0) {
+            const filteredMovies = allMovies.filter(movie => 
+                movie.title.toLowerCase().includes(query)
+            );
+            renderPosters(filteredMovies);
+        } else {
+            renderPosters(allMovies);
+        }
+    });
+
+    postersGrid.addEventListener('click', function(e) {
+        const posterItem = e.target.closest('.poster-item');
+        if (posterItem) {
+            const posterUrl = posterItem.dataset.posterUrl;
+            updateBanner(posterUrl);
+        }
+    });
+
+
+    removeBannerBtn.addEventListener('click', function() {
+        updateBanner('');
+    });
+
+    function updateBanner(url) {
+        profileBannerBg.style.backgroundImage = url ? `url('${url}')` : 'none';
+
+        const formData = new FormData();
+        formData.append('banner_url', url);
+
+        fetch('update_banner.php', { method: 'POST', body: formData })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status !== 'success') {
+                    console.error('Błąd aktualizacji tła:', data.message);
+                }
+                if (url) {
+                    removeBannerBtn.classList.remove('hidden');
+                } else {
+                    removeBannerBtn.classList.add('hidden');
+                }
+            });
+
+        modalOverlay.classList.remove('visible');
+    }
+
+    renderPosters(allMovies);
+});
+<?php endif; ?>
+
+<?php if ($logged_in_user_id === $profile_user_id && $user['role'] === 'critic'): ?>
+document.addEventListener('DOMContentLoaded', function() {
+    const descriptionText = document.getElementById('critic-description-text');
+    const modalOverlay = document.getElementById('description-modal-overlay');
+
+    descriptionText.addEventListener('click', () => {
+        modalOverlay.classList.add('visible');
+    });
+
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            modalOverlay.classList.remove('visible');
+        }
+    });
+});
+<?php endif; ?>
+
+document.addEventListener('DOMContentLoaded', function() {
+    const likeButtons = document.querySelectorAll('.like-btn');
+
+    likeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const ratingId = this.dataset.ratingId;
+            const likeCountSpan = this.querySelector('.like-count');
+
+            const formData = new FormData();
+            formData.append('rating_id', ratingId);
+
+            fetch('like_review.php', {
+                method: 'POST', body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    likeCountSpan.textContent = data.like_count;
+                    if (data.action === 'liked') {
+                        this.classList.add('liked');
+                    } else {
+                        this.classList.remove('liked');
+                    }
+                } else {
+                    alert(data.message || 'Wystąpił błąd.');
+                }
+            }).catch(error => console.error('Błąd sieci:', error));
+        });
+    });
+});
 </script>
 
 </body>

@@ -52,6 +52,21 @@ include 'header.php';
         animation: fadeIn 0.5s ease-in-out;
     }
 
+    .info-message {
+        background-color: #e6f7ff;
+        color: #005f8d;
+        border: 1px solid #99d6ff;
+        background-color: #ffdddd;
+        color: #b30000;
+        border: 1px solid #ff5c5c;
+        padding: 12px 15px;
+        margin: 15px 0;
+        border-radius: 8px;
+        font-weight: 600;
+        text-align: center;
+        animation: fadeIn 0.5s ease-in-out;
+    }
+
     @keyframes fadeIn {
         from {
             opacity: 0;

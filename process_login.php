@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db_connect.php';
+include 'functions.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST['email']);
@@ -11,7 +12,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $sql = "SELECT id, username, password FROM users WHERE email = ?";
+    $sql = "SELECT id, username, password, role FROM users WHERE email = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $email);
     $stmt->execute();
@@ -23,6 +24,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (password_verify($password, $row['password'])) {
             $_SESSION['user_id'] = $row['id'];
             $_SESSION['username'] = $row['username'];
+            $_SESSION['user_role'] = $row['role'];
+
+            // Przenieś filmy z sesji gościa do bazy danych
+            transfer_session_lists_to_db($row['id'], $conn);
+
             header("Location: index.php");
             exit();
         } else {

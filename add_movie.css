@@ -1,0 +1,82 @@
+main .form-container {
+    max-width: 800px;
+    background: #ffffff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    padding: 2rem;
+    margin: 2rem auto;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+}
+
+.settings-header h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    color: #2c2c2c;
+}
+
+.settings-header .back-link {
+    font-size: 1.5rem;
+    color: #555;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.settings-header .back-link:hover {
+    color: #0ccb4a;
+}
+
+.add-movie-form .form-row {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.add-movie-form .form-row .form-group {
+    flex: 1;
+}
+
+.add-movie-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.add-movie-form label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #555;
+}
+
+.add-movie-form input,
+.add-movie-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.add-movie-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.add-movie-form .form-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+.message {
+    padding: 1rem;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-weight: 500;
+}
+

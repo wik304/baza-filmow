@@ -1,0 +1,352 @@
+.reviews-section {
+    padding: 3rem 0;
+    padding-top: 5rem;
+}
+
+.reviews-list h3,
+.profile-content-section h3,
+.critics-reviews-section h3 {
+    font-size: 20px;
+    color: #2c2c2c;
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+.reviews-list {
+    max-width: 800px;
+    margin-left: 0;
+    margin-right: auto;
+}
+
+.review-items-container,
+.user-reviews-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.review-item,
+.user-review-item {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 1.5rem;
+}
+
+.review-item:last-child,
+.user-review-item:last-child {
+    border-bottom: none;
+}
+
+.review-header,
+.user-review-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.review-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.review-author,
+.user-review-header .review-author {
+    font-weight: 700;
+    font-size: 16px;
+    color: #2c2c2c;
+    text-decoration: none;
+}
+
+.review-rating-simple {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.review-favorite-icon {
+    color: red;
+    font-size: 16px;
+}
+
+.review-rating-simple span {
+    font-size: 16px;
+}
+
+.review-rating-simple .fa-solid.fa-star {
+    color: #f39c12;
+    font-size: 14px;
+}
+
+.review-comment {
+    font-size: 14px !important;
+    line-height: 1.6;
+    color: #333;
+}
+
+.review-footer {
+    text-align: right;
+}
+
+.review-date {
+    font-size: 14px;
+    color: #777;
+    text-align: right;
+}
+
+.review-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.like-btn {
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #777;
+    font-size: 14px;
+    padding: 0;
+    border-radius: 4px;
+    transition: color 0.2s;
+    cursor: pointer;
+}
+
+.like-btn:hover {
+    background-color: transparent;
+}
+
+.like-btn.liked .fa-thumbs-up {
+    color: #0ccb4a;
+}
+
+.like-btn.accepted .fa-check {
+    color: #0ccb4a;
+}
+
+.like-btn .fa-thumbs-up {
+    font-size: 14px;
+}
+
+.see-more-reviews {
+    text-align: center;
+    margin-bottom: 2rem;
+    width: 100%;
+}
+
+.see-more-reviews-link {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    color: #555;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.see-more-reviews-link:hover {
+    background-color: #333;
+    color: #ffffff;
+    border-color: #333;
+}
+
+.review-count-badge {
+    background-color: #0ccb4a;
+    color: #ffffff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    min-width: 20px;
+}
+
+@media (max-width: 1000px) {
+    .reviews-list {
+        max-width: 100%;
+    }
+}
+
+
+
+.simple-slider-wrapper {
+    position: relative;
+    max-width: 100%;
+    margin: 2rem auto;
+}
+
+.simple-slider-container {
+    overflow-x: auto;
+    scroll-behavior: smooth;
+
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.simple-slider-container::-webkit-scrollbar {
+    display: none;
+}
+
+.simple-slider-track {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+.simple-slider-item {
+    flex: 0 0 300px;
+    height: 240px;
+    background-color: none;
+    border-radius: 4px;
+    text-align: left;
+    padding: 1rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
+}
+
+.slider-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background-color: rgba(255, 255, 255, 1);
+    border: 1px solid #ddd;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.slider-arrow:hover {
+    background-color: #fff;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.slider-arrow:disabled {
+    opacity: 0;
+    cursor: not-allowed;
+}
+
+.slider-arrow-prev {
+    left: 0;
+}
+
+.slider-arrow-next {
+    right: 0;
+}
+
+.simple-slider-item img {
+    width: 3rem;
+    height: 3rem;
+}
+
+.critic-review-author,
+.critic-review-star-number {
+    font-weight: 600;
+    font-size: 16px;
+    color: #2c2c2c;
+    text-decoration: none;
+}
+
+.critic-review-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.critic-review-info-box {
+    display: flex;
+    align-items: top;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.fa-check-circle:before {
+    color: #0ccb4a;
+}
+
+.critic-review-author-name-box {
+    display: flex;
+    height: min-content;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.critic-review-description {
+    font-size: 12px;
+    color: #555;
+    margin: 0 !important;
+    padding-bottom: 4px !important;
+    display: -webkit-box;
+    line-clamp: 1;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.critic-review-follow-button {
+    align-self: flex-start;
+    padding: 2px 4px;
+    font-size: 12px;
+    color: #ffffff;
+    background-color: #0ccb4a;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.critic-review-follow-button:hover {
+    background-color: #0aa63a;
+}
+
+.critic-review-rating-box {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+}
+
+.critic-review-rating-box .fa-solid.fa-star.critic-review-filled {
+    color: #f39c12;
+    font-size: 14px;
+}
+
+.critic-review-rating-box .fa-solid.fa-star.critic-review-empty {
+    color: #e0e0e0;
+    font-size: 14px;
+}
+
+.critic-review-description span {
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+    display: -webkit-box;
+    line-clamp: 4;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
