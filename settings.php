@@ -5,8 +5,8 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-include 'db_connect.php';
-include 'header.php';
+include 'config/db_connect.php';
+include 'includes/header.php';
 
 $user_id = $_SESSION['user_id'];
 
@@ -28,7 +28,7 @@ $password_update_error = '';
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if (isset($_POST['phone_number'])) {
-        $phone_number = trim($_POST['phone_number']);
+        $phone_number = trim(strip_tags($_POST['phone_number']));
 
         if (!empty($phone_number) && !preg_match('/^[0-9 \-+]{9,15}$/', $phone_number)) {
             $phone_update_error = 'Nieprawidłowy format numeru telefonu.';
@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     if (isset($_POST['new_email'])) {
-        $new_email = trim($_POST['new_email']);
+        $new_email = trim(strip_tags($_POST['new_email']));
 
         if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
             $email_update_error = 'Nieprawidłowy format adresu e-mail.';
@@ -264,6 +264,27 @@ $conn->close();
         color: #cc0000;
         border: 1px solid #ff9999;
     }
+
+    @media (max-width: 600px) {
+        .info-group {
+            flex-wrap: wrap;
+            row-gap: 0.5rem;
+        }
+
+        .info-label {
+            width: 100%;
+        }
+
+        .info-value {
+            order: 2;
+            flex-grow: 1;
+            word-break: break-all;
+        }
+
+        .edit-btn {
+            order: 3;
+        }
+    }
 </style>
 
 <main>
@@ -353,29 +374,25 @@ $conn->close();
                 <span class="info-value">
                     <?php
                     $date = new DateTime($user['created_at']);
-                    echo $date->format('d F Y');
+                    if (class_exists('IntlDateFormatter')) {
+                        $formatter = new IntlDateFormatter('pl_PL', IntlDateFormatter::LONG, IntlDateFormatter::NONE, null, null, 'd MMMM yyyy');
+                        echo $formatter->format($date);
+                    } else {
+                        $polish_months = [1 => 'stycznia', 2 => 'lutego', 3 => 'marca', 4 => 'kwietnia', 5 => 'maja', 6 => 'czerwca', 7 => 'lipca', 8 => 'sierpnia', 9 => 'września', 10 => 'października', 11 => 'listopada', 12 => 'grudnia'];
+                        $day = $date->format('d');
+                        $month_number = (int)$date->format('n');
+                        $year = $date->format('Y');
+                        $polish_month_name = $polish_months[$month_number];
+                        echo "$day $polish_month_name $year";
+                    }
                     ?>
                 </span>
             </div>
         </div>
-
-        <?php if ($user['role'] === 'admin'): ?>
-        <div class="profile-card">
-            <h3><i class="fa-solid fa-user-shield"></i>Panel Administratora</h3>
-            <div class="info-group">
-                <span class="info-label">Zarządzanie bazą filmów</span>
-                <a href="add_movie.php" class="submit-btn" style="width: auto; font-size: 14px; padding: 8px 16px; text-decoration: none;">Dodaj film</a>
-            </div>
-            <div class="info-group">
-                <span class="info-label">Przelicz popularność filmów</span>
-                <a href="recalculate_popularity.php" target="_blank" class="submit-btn" style="width: auto; font-size: 14px; padding: 8px 16px; text-decoration: none;">Uruchom skrypt</a>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
 </main>
 
-<?php include 'footer.php'; ?>
+<?php include 'includes/footer.php'; ?>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -413,4 +430,5 @@ $conn->close();
     });
 </script>
 </body>
+
 </html>

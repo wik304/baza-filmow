@@ -1,8 +1,8 @@
 <?php
 session_start();
-include 'db_connect.php';
-include 'header.php';
-include 'functions.php';
+include 'config/db_connect.php';
+include 'includes/header.php';
+include 'includes/functions.php';
 
 $user_id = $_SESSION['user_id'] ?? null;
 $user_role = $_SESSION['user_role'] ?? 'user';
@@ -11,11 +11,11 @@ $rating_message = '';
 
 if ($movie_id === 0) {
     echo "<main><div class='main-content'><p>Nieprawidłowy adres. Nie znaleziono filmu.</p></div></main>";
-    include 'footer.php';
+    include 'includes/footer.php';
     exit();
 }
 
-$user_current_rating = 0.0;
+$user_current_rating = 0;
 $user_current_comment = '';
 if ($user_id) {
     $sql_user_rate = "SELECT rating, comment FROM ratings WHERE user_id = ? AND movie_id = ?";
@@ -25,7 +25,7 @@ if ($user_id) {
     $result_user_rate = $stmt_user_rate->get_result();
     if ($result_user_rate->num_rows > 0) {
         $user_review = $result_user_rate->fetch_assoc();
-        $user_current_rating = (float)($user_review['rating'] ?? 0.0);
+        $user_current_rating = (int)($user_review['rating'] ?? 0);
         $user_current_comment = $user_review['comment'] ?? '';
     }
     $stmt_user_rate->close();
@@ -34,7 +34,7 @@ if ($user_id) {
 if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
     if (isset($_POST['rating']) || isset($_POST['comment'])) {
 
-        if (isset($_POST['rating']) && (float)$_POST['rating'] === 0.0) {
+        if (isset($_POST['rating']) && (int)$_POST['rating'] === 0) {
             $sql_delete = "DELETE FROM ratings WHERE user_id = ? AND movie_id = ?";
             $stmt_delete = $conn->prepare($sql_delete);
             $stmt_delete->bind_param("ii", $user_id, $movie_id);
@@ -44,17 +44,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
                 $rating_message = "Wystąpił błąd podczas usuwania oceny.";
             }
             $stmt_delete->close();
-            $user_current_rating = 0.0;
+            $user_current_rating = 0;
             $user_current_comment = '';
-            update_movie_popularity($movie_id, $conn);
         } else {
 
             if (isset($_POST['rating']) && !empty($_POST['rating'])) {
-                $rating_from_form = (float)$_POST['rating'];
+                $rating_from_form = (int)$_POST['rating'];
             } else {
                 $rating_from_form = $user_current_rating;
             }
-            $comment_from_form = isset($_POST['comment']) ? trim($_POST['comment']) : $user_current_comment;
+            $comment_from_form = isset($_POST['comment']) ? trim(strip_tags($_POST['comment'])) : $user_current_comment;
 
             $rating_type = ($user_role === 'critic') ? 'critic' : 'user';
 
@@ -64,7 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
 
             $stmt_rate = $conn->prepare($sql_rate);
             $stmt_rate->bind_param(
-                "iidssdss",
+                "iiississ",
                 $user_id,
                 $movie_id,
                 $rating_from_form,
@@ -92,9 +91,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
                 $rating_message = "Wystąpił błąd. Spróbuj ponownie.";
             }
             $stmt_rate->close();
-            update_movie_popularity($movie_id, $conn);
 
-            // Sprawdź osiągnięcia
             check_and_grant_achievements($user_id, 'rate_movie', $conn);
             if (!empty($comment_from_form)) {
                 check_and_grant_achievements($user_id, 'write_review', $conn);
@@ -146,7 +143,7 @@ $sql_critic_reviews = "SELECT r.id as rating_id, r.rating, r.comment, u.username
                        WHERE r.movie_id = ? AND r.rating_type = 'critic' AND r.comment IS NOT NULL AND r.comment != ''
                        ORDER BY r.created_at DESC LIMIT 5";
 $stmt_critic_reviews = $conn->prepare($sql_critic_reviews);
-$stmt_critic_reviews->bind_param("iii", $user_id, $user_id, $movie_id); // user_id jest tu dwa razy dla spójności zapytań
+$stmt_critic_reviews->bind_param("iii", $user_id, $user_id, $movie_id);
 $stmt_critic_reviews->execute();
 $result_critic_reviews = $stmt_critic_reviews->get_result();
 if ($result_critic_reviews->num_rows > 0) {
@@ -179,7 +176,7 @@ if (!$movie) {
     echo "<main><div class='main-content'><p>Film o podanym ID nie istnieje w bazie danych.</p></div></main>";
     $stmt->close();
     $conn->close();
-    include 'footer.php';
+    include 'includes/footer.php';
     exit();
 }
 $stmt->close();
@@ -202,7 +199,6 @@ if ($user_id) {
     }
     $stmt_lists->close();
 } else {
-    // Sprawdź sesję dla gości
     if (isset($_SESSION['guest_lists']['favorite']) && in_array($movie_id, $_SESSION['guest_lists']['favorite'])) {
         $is_favorite = true;
     }
@@ -211,553 +207,7 @@ if ($user_id) {
     }
 }
 ?>
-
-<style>
-    .hero-wrapper {
-        position: relative;
-        margin-bottom: 4rem;
-    }
-
-    .movie-hero {
-        position: relative;
-        width: 100%;
-        min-height: 500px;
-        padding: 4rem 0 3rem;
-        display: flex;
-        align-items: center;
-        color: #ffffff;
-        overflow: hidden;
-    }
-
-    .hero-background {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-size: cover;
-        background-position: center;
-        filter: blur(20px) brightness(0.4);
-        transform: scale(1.1);
-        z-index: 1;
-    }
-
-    .hero-content {
-        position: relative;
-        z-index: 2;
-        display: flex;
-        gap: 2.5rem;
-        align-items: center;
-    }
-
-    .hero-poster img {
-        width: 300px;
-        height: auto;
-        border-radius: 8px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        border: 2px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .hero-info {
-        flex: 1;
-        color: #ffffff;
-    }
-
-    .hero-info h1 {
-        font-size: 3rem;
-        font-weight: 700;
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-        color: #ffffff !important;
-        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
-    }
-
-    .meta-info {
-        display: flex;
-        gap: 1.5rem;
-        font-size: 1rem;
-        color: #eee;
-        margin-bottom: 1.5rem;
-    }
-
-    .meta-info span {
-        font-weight: 500;
-    }
-
-    .hero-info .ratings {
-        justify-content: flex-start;
-        gap: 2.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .hero-info .rating-item span {
-        font-size: 0.9rem;
-        color: #ccc;
-    }
-
-    .hero-info .rating-item strong {
-        font-size: 1.2rem;
-        color: #ffffff;
-    }
-
-    .plot-summary h3 {
-        font-size: 1.3rem;
-        font-weight: 600;
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-        border-bottom: 2px solid #0ccb4a;
-        padding-bottom: 5px;
-        display: inline-block;
-    }
-
-    .plot-summary p {
-        font-size: 1rem;
-        line-height: 1.7;
-        color: #ffffff !important;
-    }
-
-    .plot-box {
-        position: absolute;
-        bottom: 0;
-        left: 50%;
-        transform: translate(-50%, 50%);
-        background-color: #ffffff;
-        color: #2c2c2c;
-        border-radius: 4px;
-        padding: 1rem 1rem;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e0e0e0;
-        text-align: left;
-        z-index: 5;
-    }
-
-    .plot-box .box-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-    }
-
-    .box-header-left {
-        display: flex;
-        align-items: center;
-        margin-bottom: 0;
-    }
-
-    .plot-box .box-avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 6px;
-        object-fit: cover;
-        border-radius: 50%;
-        object-fit: cover;
-        flex: 0 0 48px;
-        margin-right: 0.75rem
-    }
-
-    .plot-box .box-rate-text {
-        color: #555;
-        font-size: 14px;
-        font-weight: 600;
-    }
-
-    .remove-rating-btn {
-        background: none;
-        border: none;
-        color: #999;
-        font-size: 1.5rem;
-        font-weight: 600;
-        line-height: 1;
-        padding: 0 5px;
-        cursor: pointer;
-        transition: color 0.2s ease;
-    }
-
-    .remove-rating-btn:hover {
-        color: #555;
-    }
-
-    .remove-rating-btn.hidden {
-        display: none;
-    }
-
-    .box-header-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .action-btn {
-        background: none;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: #555;
-        font-size: 1rem;
-        transition: all 0.2s ease;
-    }
-
-    .action-btn:hover {
-        background-color: #f5f5f5;
-        border-color: #ccc;
-        transform: scale(1.1);
-    }
-
-    .action-btn.btn-favorite:hover {
-        color: red;
-    }
-
-    .action-btn.btn-watchlist:hover {
-        color: #0ccb4a;
-        /* Zielony */
-    }
-
-    /* Styl dla aktywnego przycisku (gdy film jest na liście) */
-    .action-btn.active.btn-favorite {
-        background-color: #ffebee;
-        color: red;
-    }
-
-    .action-btn.active.btn-watchlist {
-        background-color: #e8f5e9;
-        color: #0ccb4a;
-    }
-
-    .action-btn .fa-eye {
-        color: inherit;
-    }
-
-    .star-rating-form {
-        margin-top: 1rem;
-    }
-
-    .star-rating-container {
-        display: flex;
-        flex-direction: row-reverse;
-        justify-content: center;
-        gap: 2px;
-    }
-
-    .star-rating-container input[type="radio"] {
-        display: none;
-    }
-
-    .star-rating-container label {
-        font-size: 1.5rem;
-        color: #ccc;
-        cursor: pointer;
-        transition: color 0.2s ease;
-    }
-
-    .star-rating-container input[type="radio"]:checked~label {
-        color: #f39c12;
-    }
-
-    .star-rating-container:hover label {
-        color: #ccc;
-    }
-
-    .star-rating-container label:hover,
-    .star-rating-container label:hover~label {
-        color: #f39c12;
-    }
-
-    .star-rating-container label:hover {
-        transform: scale(1.1);
-    }
-
-    .fake-textarea {
-        cursor: pointer;
-    }
-
-    .comment-section {
-        display: none;
-        margin-top: 1rem;
-        animation: fadeIn 0.5s ease;
-    }
-
-    .comment-section.visible {
-        display: block;
-    }
-
-    .fake-textarea {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-family: 'Inter', sans-serif;
-        font-size: 14px;
-        margin-bottom: 0.5rem;
-        background-color: #f9f9f9;
-        color: #777;
-        transition: background-color 0.2s ease;
-    }
-
-    .fake-textarea:hover {
-        background-color: #f0f0f0;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .comment-textarea {
-        width: 100%;
-        height: 90px;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-family: 'Inter', sans-serif;
-        font-size: 14px;
-        resize: none;
-        overflow-y: auto;
-        margin-bottom: 0.5rem;
-    }
-
-    .comment-textarea:focus {
-        outline: none;
-        border-color: #0ccb4a;
-    }
-
-    .modal-movie-info {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .modal-movie-poster {
-        width: 80px;
-        height: 120px;
-        object-fit: cover;
-        border-radius: 4px;
-    }
-
-    .modal-movie-details {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        flex: 1;
-    }
-
-    .modal-rating-display {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    #modal-rating-number {
-        font-size: 16px;
-        font-weight: 700;
-        color: #2c2c2c;
-    }
-
-    #modal-user-rating {
-        flex-direction: row;
-    }
-
-    #modal-user-rating .fa-star {
-        color: #ccc;
-    }
-
-    #modal-user-rating .fa-star.rated {
-        color: #f39c12;
-    }
-
-    .modal-review-date {
-        font-size: 0.8rem;
-        color: #777;
-        margin-top: 0.25rem;
-    }
-
-    body.modal-open {
-        overflow: hidden;
-    }
-
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.6);
-        z-index: 1000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-
-    .modal-overlay:not(.hidden) {
-        opacity: 1;
-        visibility: visible;
-    }
-
-    .modal-box {
-        background: #ffffff;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-        width: 90%;
-        max-width: 500px;
-        position: relative;
-        transform: scale(0.95);
-        transition: transform 0.3s ease;
-    }
-
-    .modal-overlay:not(.hidden) .modal-box {
-        transform: scale(1);
-    }
-
-    .modal-close-btn {
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        background: none;
-        border: none;
-        font-size: 2rem;
-        color: #999;
-        cursor: pointer;
-        line-height: 1;
-    }
-
-    .modal-actions {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 1rem;
-    }
-
-    .char-counter {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        font-size: 0.7rem;
-        color: #777;
-        font-weight: 500;
-    }
-
-    .char-counter.hidden {
-        visibility: hidden;
-    }
-
-    #save-comment-btn {
-        padding: 8px 16px;
-        font-size: 0.9rem;
-        width: auto;
-    }
-
-    /* Styl dla nieaktywnego przycisku */
-    #save-comment-btn:disabled {
-        background-color: transparent;
-        color: #aaa;
-        border: 1px solid #e0e0e0;
-        cursor: not-allowed;
-    }
-
-
-    @media (max-width: 768px) {
-        .hero-wrapper {
-            margin-bottom: 0;
-        }
-
-        .plot-box {
-            position: relative;
-            left: auto;
-            bottom: auto;
-            transform: none;
-            margin: -2rem auto 2rem auto;
-            width: calc(100% - 2rem);
-        }
-    }
-
-    @media (max-width: 768px) {
-        .hero-content {
-            flex-direction: column;
-            text-align: center;
-        }
-
-        .hero-poster img {
-            width: 70%;
-            max-width: 300px;
-        }
-
-        .meta-info,
-        .hero-info .ratings {
-            justify-content: center;
-        }
-
-        .hero-info {
-            text-align: center;
-        }
-
-        .hero-info h1 {
-            font-size: 2.2rem;
-        }
-    }
-
-    .rating-section {
-        display: none;
-    }
-
-    .reviews-section {
-        padding: 3rem 0;
-        padding-top: 5rem;
-    }
-</style>
-<style>
-    .see-all-reviews-slide {
-        display: flex;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        height: 100%;
-        padding: 1rem 2rem;
-    }
-
-    .see-all-content {
-        font-size: 1rem;
-        color: #0ccb4a;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-    }
-
-    .see-all-content h3 {
-        color: #2c2c2c;
-        margin-bottom: 0.5rem !important;
-    }
-
-    .see-all-content p {
-        color: #555;
-    }
-
-    .see-all-button {
-        background-color: #0ccb4a;
-        color: #2c2c2c;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 4px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        text-decoration: none;
-    }
-
-</style>
+<link rel="stylesheet" href="assets/css/movie.css">
 
 <main>
     <div class="hero-wrapper">
@@ -797,7 +247,7 @@ if ($user_id) {
         <div class="plot-box">
             <div class="box-header">
                 <div class="box-header-left">
-                    <img src="<?php echo htmlspecialchars($_SESSION['user_avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="avatar" class="box-avatar">
+                    <img src="<?php echo htmlspecialchars($_SESSION['user_avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="avatar" class="box-avatar">
                     <span class="box-rate-text">Oceń film</span>
                     <button type="button" class="remove-rating-btn <?php if (!($user_id && $user_current_rating > 0)) echo 'hidden'; ?>" id="remove-rating-btn" title="Usuń ocenę">&times;</button>
                 </div>
@@ -842,7 +292,7 @@ if ($user_id) {
                             <div class="review-item">
                                 <div class="review-header">
                                     <a href="profile.php?id=<?php echo $review['user_id']; ?>" class="review-author-link">
-                                        <img src="<?php echo htmlspecialchars($review['avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="Avatar" class="review-avatar">
+                                        <img src="<?php echo htmlspecialchars($review['avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="Avatar" class="review-avatar">
                                     </a>
                                     <a href="profile.php?id=<?php echo $review['user_id']; ?>" class="review-author-link">
                                         <span class="review-author"><?php echo htmlspecialchars($review['username']); ?></span>
@@ -894,13 +344,8 @@ if ($user_id) {
                 <div style="text-align: left;">
                     <h3>Recenzje krytyków</h3>
                 </div>
-                <!-- Wrapper, który obejmuje slider i strzałki -->
                 <div class="simple-slider-wrapper">
-
-                    <!-- Przycisk "Poprzedni" -->
                     <button class="slider-arrow slider-arrow-prev" aria-label="Poprzedni slajd" disabled>&lt;</button>
-
-                    <!-- Kontener slidera, który będzie przewijany -->
                     <div class="simple-slider-container">
                         <div class="simple-slider-track">
                             <?php if (!empty($critic_reviews)): ?>
@@ -908,7 +353,7 @@ if ($user_id) {
                                     <div class="simple-slider-item">
                                         <div class="critic-review-info-box">
                                             <a href="profile.php?id=<?php echo $critic_review['user_id']; ?>">
-                                                <img src="<?php echo htmlspecialchars($critic_review['avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="critic-avatar" class="critic-box-avatar">
+                                                <img src="<?php echo htmlspecialchars($critic_review['avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="critic-avatar" class="critic-box-avatar">
                                             </a>
                                             <div class="critic-review-content">
                                                 <div class="critic-review-author-name-box">
@@ -972,7 +417,6 @@ if ($user_id) {
                         </div>
                     </div>
 
-                    <!-- Przycisk "Następny" -->
                     <button class="slider-arrow slider-arrow-next" aria-label="Następny slajd">&gt;</button>
 
                 </div>
@@ -1013,7 +457,7 @@ if ($user_id) {
 
 <?php
 $conn->close();
-include 'footer.php';
+include 'includes/footer.php';
 ?>
 
 <script>
@@ -1073,16 +517,16 @@ include 'footer.php';
         }
 
         function openModal() {
-            updateCharCounter(); // Zaktualizuj licznik i przycisk przy otwarciu
-            document.body.classList.add('modal-open'); // Blokuj scrollowanie tła
-            realCommentTextarea.value = userCurrentComment; // Ustaw aktualny komentarz w polu
+            updateCharCounter();
+            document.body.classList.add('modal-open');
+            realCommentTextarea.value = userCurrentComment;
 
             const modalRatingContainer = document.getElementById('modal-user-rating');
             const currentRatingInput = ratingForm.querySelector('input[name="rating"]:checked');
             const modalRatingNumber = document.getElementById('modal-rating-number');
             const ratingValue = currentRatingInput ? parseInt(currentRatingInput.value) : 0;
 
-            modalRatingContainer.innerHTML = ''; // Wyczyść poprzednie gwiazdki
+            modalRatingContainer.innerHTML = '';
             modalRatingNumber.textContent = ratingValue > 0 ? `${ratingValue}` : '';
 
             for (let i = 1; i <= 10; i++) {
@@ -1096,7 +540,7 @@ include 'footer.php';
         }
 
         function closeModal() {
-            document.body.classList.remove('modal-open'); // Odblokuj scrollowanie tła
+            document.body.classList.remove('modal-open');
             modalOverlay.classList.add('hidden');
         }
 
@@ -1110,7 +554,7 @@ include 'footer.php';
 
         saveCommentBtn.addEventListener('click', function() {
             const newComment = realCommentTextarea.value;
-            userCurrentComment = newComment; // Zaktualizuj zmienną JS
+            userCurrentComment = newComment;
 
             const formData = new FormData();
             formData.append('comment', newComment);
@@ -1132,7 +576,7 @@ include 'footer.php';
                 }
             });
 
-            closeModal(); // Zamknij okno po zapisie
+            closeModal();
         });
 
         actionButtons.forEach(button => {
@@ -1147,7 +591,7 @@ include 'footer.php';
                 formData.append('movie_id', movieId);
                 formData.append('list_type', listType);
 
-                fetch('update_list.php', {
+                fetch('actions/movies/update_list.php', {
                         method: 'POST',
                         body: formData
                     })
@@ -1180,7 +624,7 @@ include 'footer.php';
                 const formData = new FormData();
                 formData.append('rating_id', ratingId);
 
-                fetch('like_review.php', {
+                fetch('actions/reviews/like_review.php', {
                         method: 'POST',
                         body: formData
                     })
@@ -1207,7 +651,7 @@ include 'footer.php';
                 const formData = new FormData();
                 formData.append('followed_id', followedId);
 
-                fetch('follow_user.php', {
+                fetch('actions/users/follow_user.php', {
                         method: 'POST',
                         body: formData
                     })
@@ -1236,24 +680,19 @@ include 'footer.php';
             const currentLength = realCommentTextarea.value.length;
             const charsLeft = maxChars - currentLength;
 
-            // Domyślnie włącz przycisk zapisu.
-            // Użytkownik może chcieć zapisać pusty komentarz (lub tylko ocenę).
             saveCommentBtn.disabled = false;
 
             if (currentLength > 0) {
-                // Pokaż licznik tylko wtedy, gdy coś jest wpisane
                 charCounter.classList.remove('hidden');
                 charsLeftSpan.textContent = charsLeft;
             } else {
-                // Ukryj licznik, gdy pole jest puste
                 charCounter.classList.add('hidden');
             }
 
-            // Wyłącz przycisk TYLKO wtedy, gdy przekroczono limit znaków
             if (charsLeft < 0) {
                 saveCommentBtn.disabled = true;
-                charsLeftSpan.textContent = '0'; // Pokaż 0, gdy przekroczono
-                charCounter.classList.remove('hidden'); // Upewnij się, że licznik jest widoczny
+                charsLeftSpan.textContent = '0';
+                charCounter.classList.remove('hidden');
             }
         }
 

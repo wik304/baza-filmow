@@ -1,10 +1,10 @@
 <?php
 session_start();
 
-include 'db_connect.php';
-include 'header.php';
+include 'config/db_connect.php';
+include 'includes/header.php';
 
-echo '<link rel="stylesheet" href="profile.css">';
+echo '<link rel="stylesheet" href="assets/css/profile.css">';
 
 $logged_in_user_id = $_SESSION['user_id'] ?? null;
 $profile_user_id = 0;
@@ -17,7 +17,7 @@ if (isset($_GET['id']) && (int)$_GET['id'] > 0) {
 
 if ($profile_user_id === 0) {
     echo "<main><div class='main-content'><p>Nie znaleziono użytkownika.</p></div></main>";
-    include 'footer.php';
+    include 'includes/footer.php';
     exit();
 }
 
@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['update_critic_descrip
     $user_role_result = $stmt_check_role->get_result()->fetch_assoc();
 
     if ($user_role_result && $user_role_result['role'] === 'critic') {
-        $new_description = trim($_POST['critic_description']);
+        $new_description = trim(strip_tags($_POST['critic_description']));
         if (strlen($new_description) <= 100) {
             $sql_update = "UPDATE users SET critic_description = ? WHERE id = ?";
             $stmt_update = $conn->prepare($sql_update);
@@ -153,7 +153,6 @@ while ($row = $result_following->fetch_assoc()) {
 }
 $stmt_following->close();
 
-// Pobierz zdobyte osiągnięcia
 $achievements = [];
 $sql_achievements = "SELECT a.name, a.description, a.icon_url
                      FROM user_achievements ua
@@ -184,17 +183,12 @@ $conn->close();
                     <input type="file" id="avatar-upload-input" style="display: none;" accept="image/*">
                     <button id="change-banner-btn" class="change-banner-btn"><i class="fa-solid fa-image"></i> <span>Zmień tło</span></button>
                 </div>
-                <div class="profile-banner-overlay">
-                    <a href="settings.php" class="settings-link" title="Ustawienia konta">
-                        <i class="fa-solid fa-cog"></i>
-                    </a>
-                </div>
             <?php endif; ?>
             <div class="main-content">
                 <div class="form-container">
                     <div class="avatar-card">
                         <div class="avatar-container" id="avatar-container-clickable">
-                            <img src="<?php echo htmlspecialchars($user['avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="Avatar użytkownika" class="profile-avatar" id="profile-avatar-img">
+                            <img src="<?php echo htmlspecialchars($user['avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="Avatar użytkownika" class="profile-avatar" id="profile-avatar-img">
                         </div>
                         <div class="avatar-info">
                             <div class="profile-username"><?php echo htmlspecialchars($user['username']); ?></div>
@@ -354,7 +348,7 @@ $conn->close();
                     <?php foreach ($following_users as $followed_user): ?>
                         <div class="user-grid-item">
                             <a href="profile.php?id=<?php echo $followed_user['id']; ?>">
-                                <img src="<?php echo htmlspecialchars($followed_user['avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="Avatar użytkownika <?php echo htmlspecialchars($followed_user['username']); ?>">
+                                <img src="<?php echo htmlspecialchars($followed_user['avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="Avatar użytkownika <?php echo htmlspecialchars($followed_user['username']); ?>">
                                 <h4><?php echo htmlspecialchars($followed_user['username']); ?></h4>
                             </a>
                         </div>
@@ -399,7 +393,7 @@ $conn->close();
 <?php endif; ?>
 
 <?php
-include 'footer.php';
+include 'includes/footer.php';
 ?>
 
 <script>
@@ -421,21 +415,20 @@ include 'footer.php';
                 avatarContainer.addEventListener('click', () => {
                     avatarUploadInput.click();
                 });
- 
+
                 avatarUploadInput.addEventListener('change', () => {
                     const file = avatarUploadInput.files[0];
                     if (file) {
                         const formData = new FormData();
                         formData.append('avatar', file);
 
-                        fetch('update_avatar.php', {
+                        fetch('actions/users/update_avatar.php', {
                                 method: 'POST',
                                 body: formData
                             })
                             .then(response => response.json())
                             .then(data => {
                                 if (data.status === 'success') {
-                                    // Dodajemy timestamp, aby przeglądarka odświeżyła obrazek
                                     profileAvatarImg.src = data.new_avatar_url + '?' + new Date().getTime();
                                 } else {
                                     alert('Błąd: ' + data.message);
@@ -523,7 +516,7 @@ include 'footer.php';
                 const formData = new FormData();
                 formData.append('banner_url', url);
 
-                fetch('update_banner.php', {
+                fetch('actions/users/update_banner.php', {
                         method: 'POST',
                         body: formData
                     })
@@ -574,7 +567,7 @@ include 'footer.php';
                 const formData = new FormData();
                 formData.append('rating_id', ratingId);
 
-                fetch('like_review.php', {
+                fetch('actions/reviews/like_review.php', {
                         method: 'POST',
                         body: formData
                     })

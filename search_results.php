@@ -1,19 +1,18 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) { // Upewnij się, że sesja jest uruchomiona
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-include 'db_connect.php';
-include 'header.php';
+include 'config/db_connect.php';
+include 'includes/header.php';
 ?>
 
 <head>
-    <link rel="stylesheet" href="search_results.css">
+    <link rel="stylesheet" href="assets/css/search_results.css">
 </head>
 
 <main>
     <div class="main-content">
         <?php
-        // Pobierz wszystkie gatunki do formularza filtrów
         $genres_sql = "SELECT genre_id, name FROM genres ORDER BY name ASC";
         $genres_result = $conn->query($genres_sql);
         $genres_list = [];
@@ -23,7 +22,6 @@ include 'header.php';
             }
         }
 
-        // Inicjalizacja zmiennych dla filtrów i wyszukiwania
         $search_query = '';
         $genre_filter = '';
         $year_from_filter = '';
@@ -35,10 +33,8 @@ include 'header.php';
         $sort_by = '';
         $movies_array = [];
 
-        // Sprawdź, czy formularz został wysłany
         if (isset($_GET['search']) || !empty(trim($_GET['query'] ?? ''))) {
-            // Pobierz i oczyść dane wejściowe
-            $search_query = isset($_GET['query']) ? trim($_GET['query']) : '';
+            $search_query = isset($_GET['query']) ? trim(strip_tags($_GET['query'])) : '';
             $genre_filter = isset($_GET['genre']) ? $_GET['genre'] : '';
             $year_from_filter = isset($_GET['year_from']) && $_GET['year_from'] !== '' ? (int)$_GET['year_from'] : '';
             $year_to_filter = isset($_GET['year_to']) && $_GET['year_to'] !== '' ? (int)$_GET['year_to'] : '';
@@ -48,16 +44,14 @@ include 'header.php';
             $critic_rating_to_filter = isset($_GET['critic_rating_to']) && $_GET['critic_rating_to'] !== '' ? (float)$_GET['critic_rating_to'] : '';
             $sort_by = isset($_GET['sort_by']) ? $_GET['sort_by'] : '';
 
-            // Dynamiczne budowanie zapytania SQL
             $sql_select = "SELECT m.id, m.title, m.poster_url, m.release_year, 
                                   (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating > 0 AND rating_type = 'user') AS user_rating,
                                   (SELECT AVG(rating) FROM ratings WHERE movie_id = m.id AND rating > 0 AND rating_type = 'critic') AS critic_rating";
-            $sql_from = " FROM movies m";
-            $sql_where = " WHERE 1=1";
+            $sql_from = " FROM movies m ";
+            $sql_where = " WHERE m.status = 'available' ";
             $sql_group_by = " GROUP BY m.id";
             $sql_having = "";
 
-            // Dynamiczne sortowanie
             switch ($sort_by) {
                 case 'year_desc':
                     $sql_order_by = " ORDER BY m.release_year DESC, m.popularity DESC";
@@ -85,32 +79,30 @@ include 'header.php';
             $types = "";
 
             if (!empty($search_query)) {
-                $sql_where .= " AND m.title LIKE ?";
+                $sql_where .= "AND m.title LIKE ?";
                 $params[] = "%" . $search_query . "%";
                 $types .= "s";
             }
 
             if (!empty($genre_filter)) {
-                // Dodaj JOIN do łączenia z gatunkami
                 $sql_from .= " JOIN movie_genres mg ON m.id = mg.movie_id";
-                $sql_where .= " AND mg.genre_id = ?";
+                $sql_where .= " AND mg.genre_id = ? ";
                 $params[] = $genre_filter;
                 $types .= "i";
             }
 
             if (!empty($year_from_filter)) {
-                $sql_where .= " AND m.release_year >= ?";
+                $sql_where .= " AND m.release_year >= ? ";
                 $params[] = $year_from_filter;
                 $types .= "i";
             }
 
             if (!empty($year_to_filter)) {
-                $sql_where .= " AND m.release_year <= ?";
+                $sql_where .= " AND m.release_year <= ? ";
                 $params[] = $year_to_filter;
                 $types .= "i";
             }
 
-            // Budowanie klauzuli HAVING
             $having_conditions = [];
             if (!empty($user_rating_from_filter)) {
                 $having_conditions[] = "user_rating >= ?";
@@ -137,11 +129,7 @@ include 'header.php';
                 $sql_having = " HAVING " . implode(" AND ", $having_conditions);
             }
 
-            // Złożenie finalnego zapytania
             $sql = $sql_select . $sql_from . $sql_where . $sql_group_by . $sql_having . $sql_order_by;
-
-
-
 
             $stmt = $conn->prepare($sql);
             if ($stmt) {
@@ -162,10 +150,8 @@ include 'header.php';
             }
         }
         ?>
-        
-        <!-- <h1>Wyszukiwarka Filmów</h1> -->
+
         <form action="search_results.php" method="GET" class="search-filters">
-            <!-- Linia 1 -->
             <input type="text" name="query" placeholder="Wpisz tytuł filmu..." value="<?php echo htmlspecialchars($search_query); ?>">
             <input type="number" name="year_from" placeholder="Rok (od)" value="<?php echo htmlspecialchars($year_from_filter); ?>">
             <input type="number" name="year_to" placeholder="Rok (do)" value="<?php echo htmlspecialchars($year_to_filter); ?>">
@@ -186,7 +172,6 @@ include 'header.php';
                 <option value="critic_rating_desc" <?php echo ($sort_by == 'critic_rating_desc') ? 'selected' : ''; ?>>Oceny krytyków: od najwyższej</option>
                 <option value="critic_rating_asc" <?php echo ($sort_by == 'critic_rating_asc') ? 'selected' : ''; ?>>Oceny krytyków: od najniższej</option>
             </select>
-            <!-- Linia 2 -->
             <input type="number" step="0.1" min="0" max="10" name="user_rating_from" placeholder="Ocena użytk. (od)" value="<?php echo htmlspecialchars($user_rating_from_filter); ?>">
             <input type="number" step="0.1" min="0" max="10" name="user_rating_to" placeholder="Ocena użytk. (do)" value="<?php echo htmlspecialchars($user_rating_to_filter); ?>">
             <input type="number" step="0.1" min="0" max="10" name="critic_rating_from" placeholder="Ocena kryt. (od)" value="<?php echo htmlspecialchars($critic_rating_from_filter); ?>">
@@ -203,34 +188,34 @@ include 'header.php';
             <p style="padding-bottom: 0 !important;">Znaleziono <?php echo count($movies_array); ?> pasujących tytułów.</p>
 
             <div class="search-results-container">
-            <?php if (!empty($movies_array)): ?>
-                <div class="search-results-grid">
-                    <?php foreach ($movies_array as $movie): ?>
-                        <div class="grid-item">
-                            <div class="slide-content">
-                                <a href="movie.php?id=<?php echo $movie['id']; ?>" class="movie-card">
-                                    <img src="<?php echo htmlspecialchars($movie['poster_url']); ?>" alt="Plakat <?php echo htmlspecialchars($movie['title']); ?>">
-                                </a>
-                                <div class="movie-info">
-                                    <div class="ratings">
-                                        <div class="rating-item">
-                                            <span>Użytkownicy</span>
-                                            <strong><?php echo number_format((float)($movie['user_rating'] ?? 0), 1); ?>/10</strong>
+                <?php if (!empty($movies_array)): ?>
+                    <div class="search-results-grid">
+                        <?php foreach ($movies_array as $movie): ?>
+                            <div class="grid-item">
+                                <div class="slide-content">
+                                    <a href="movie.php?id=<?php echo $movie['id']; ?>" class="movie-card">
+                                        <img src="<?php echo htmlspecialchars($movie['poster_url']); ?>" alt="Plakat <?php echo htmlspecialchars($movie['title']); ?>">
+                                    </a>
+                                    <div class="movie-info">
+                                        <div class="ratings">
+                                            <div class="rating-item">
+                                                <span>Użytkownicy</span>
+                                                <strong><?php echo number_format((float)($movie['user_rating'] ?? 0), 1); ?>/10</strong>
+                                            </div>
+                                            <div class="rating-item">
+                                                <span>Krytycy</span>
+                                                <strong><?php echo number_format((float)($movie['critic_rating'] ?? 0), 1); ?>/10</strong>
+                                            </div>
                                         </div>
-                                        <div class="rating-item">
-                                            <span>Krytycy</span>
-                                            <strong><?php echo number_format((float)($movie['critic_rating'] ?? 0), 1); ?>/10</strong>
-                                        </div>
+                                        <h3 class="movie-title"><?php echo htmlspecialchars($movie['title']); ?> (<?php echo htmlspecialchars($movie['release_year']); ?>)</h3>
                                     </div>
-                                    <h3 class="movie-title"><?php echo htmlspecialchars($movie['title']); ?> (<?php echo htmlspecialchars($movie['release_year']); ?>)</h3>
                                 </div>
                             </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <p>Brak wyników pasujących do Twoich kryteriów. Spróbuj innej frazy lub zmień filtry.</p>
-            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <p>Brak wyników pasujących do Twoich kryteriów. Spróbuj innej frazy lub zmień filtry.</p>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <p>Wpisz frazę lub wybierz filtry, aby znaleźć interesujące Cię filmy.</p>
@@ -241,5 +226,5 @@ include 'header.php';
 
 <?php
 $conn->close();
-include 'footer.php';
+include 'includes/footer.php';
 ?>

@@ -1,7 +1,7 @@
 <?php
 session_start();
-include 'db_connect.php';
-include 'header.php';
+include 'config/db_connect.php';
+include 'includes/header.php';
 
 $logged_in_user_id = $_SESSION['user_id'] ?? null;
 $page_context = isset($_GET['movie_id']) ? 'movie' : (isset($_GET['user_id']) ? 'user' : 'none');
@@ -16,7 +16,7 @@ if ($current_page < 1) {
 
 if ($id === 0) {
     echo "<main><div class='main-content'><p>Nieprawidłowy adres. Nie znaleziono filmu.</p></div></main>";
-    include 'footer.php';
+    include 'includes/footer.php';
     exit();
 }
 
@@ -48,7 +48,6 @@ if ($page_context === 'movie') {
                         LIMIT ? OFFSET ?";
     $stmt_all_reviews = $conn->prepare($sql_all_reviews);
     $stmt_all_reviews->bind_param("iisii", $logged_in_user_id, $id, $review_type, $reviews_per_page, $offset);
-
 } elseif ($page_context === 'user') {
     $sql_user = "SELECT username FROM users WHERE id = ?";
     $stmt_user = $conn->prepare($sql_user);
@@ -75,7 +74,7 @@ if ($page_context === 'movie') {
     $stmt_all_reviews->bind_param("iiii", $logged_in_user_id, $id, $reviews_per_page, $offset);
 } else {
     echo "<main><div class='main-content'><p>Nieprawidłowy typ strony.</p></div></main>";
-    include 'footer.php';
+    include 'includes/footer.php';
     exit();
 }
 
@@ -100,77 +99,7 @@ $stmt_all_reviews->close();
 $conn->close();
 ?>
 
-<style>
-    .reviews-list {
-        max-width: 800px;
-        margin-left: 0;
-        margin: 0 auto;
-    }
-
-    .all-reviews-header {
-        font-size: 2rem;
-        color: #2c2c2c;
-        margin-bottom: 0.5rem;
-    }
-
-    .all-reviews-header .movie-title {
-        color: #0ccb4a;
-    }
-
-    .back-link-div {
-        width: 100%;
-        text-align: left;
-    }
-
-    .back-link {
-        display: inline-block;
-        margin-bottom: 2rem;
-        color: #555;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 14px;
-    }
-
-    .back-link:hover {
-        color: #0ccb4a;
-    }
-
-    .pagination {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 0.5rem;
-        margin-top: 3rem;
-    }
-
-    .pagination a,
-    .pagination span {
-        display: inline-block;
-        padding: 8px 14px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        text-decoration: none;
-        color: #333;
-        font-weight: 600;
-        transition: background-color 0.2s, color 0.2s;
-    }
-
-    .pagination a:hover {
-        background-color: #f5f5f5;
-        border-color: #ccc;
-    }
-
-    .pagination .current-page {
-        background-color: #0ccb4a;
-        color: #ffffff;
-        border-color: #0ccb4a;
-    }
-
-    .pagination .disabled {
-        color: #aaa;
-        pointer-events: none;
-    }
-</style>
+<link rel="stylesheet" href="assets/css/all_reviews.css">
 
 <main>
     <div class="main-content" style="padding-top: 2rem; padding-bottom: 2rem;">
@@ -187,7 +116,7 @@ $conn->close();
                             <div class="review-header" style="justify-content: flex-start;">
                                 <?php if ($page_context === 'movie'): ?>
                                     <a href="profile.php?id=<?php echo $review['user_id']; ?>" class="review-author-link">
-                                        <img src="<?php echo htmlspecialchars($review['avatar_url'] ?? 'uploads/avatar-default.png'); ?>" alt="Avatar" class="review-avatar">
+                                        <img src="<?php echo htmlspecialchars($review['avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="Avatar" class="review-avatar">
                                     </a>
                                     <a href="profile.php?id=<?php echo $review['user_id']; ?>" class="review-author-link">
                                         <span class="review-author"><?php echo htmlspecialchars($review['username']); ?></span>
@@ -237,7 +166,7 @@ $conn->close();
 
             <?php if ($total_pages > 1): ?>
                 <div class="pagination">
-                    <?php $base_url = "?".($page_context === 'movie' ? 'movie_id='.$id.'&type='.$review_type : 'user_id='.$id); ?>
+                    <?php $base_url = "?" . ($page_context === 'movie' ? 'movie_id=' . $id . '&type=' . $review_type : 'user_id=' . $id); ?>
 
                     <?php if ($current_page > 1): ?>
                         <a href="<?php echo $base_url; ?>&page=<?php echo $current_page - 1; ?>">Poprzednia</a>
@@ -261,7 +190,7 @@ $conn->close();
 </main>
 
 <?php
-include 'footer.php';
+include 'includes/footer.php';
 ?>
 
 <script>
@@ -276,7 +205,7 @@ include 'footer.php';
                 const formData = new FormData();
                 formData.append('rating_id', ratingId);
 
-                fetch('like_review.php', {
+                fetch('actions/reviews/like_review.php', {
                         method: 'POST',
                         body: formData
                     })

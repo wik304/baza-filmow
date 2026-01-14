@@ -1,6 +1,12 @@
 <?php
-include 'header.php';
+include 'includes/header.php';
+
+$old_data = $_SESSION['register_form_data'] ?? [];
+unset($_SESSION['register_form_data']);
 ?>
+
+<link rel="stylesheet" href="assets/css/auth_forms.css">
+<link rel="stylesheet" href="assets/css/forms.css">
 <main>
     <div class="form-container">
         <h2>Rejestracja</h2>
@@ -18,18 +24,16 @@ include 'header.php';
                 echo 'Nazwa użytkownika nie może być dłuższa niż 32 znaki.';
             } else if ($_GET['error'] == 'passwordlong') {
                 echo 'Hasło nie może być dłuższe niż 256 znaków.';
+            } else if ($_GET['error'] == 'terms') {
+                echo 'Musisz zaakceptować regulamin, aby kontynuować.';
             } else if ($_GET['error'] == 'usertaken') {
                 echo 'Nazwa użytkownika lub e-mail są już zajęte.';
             }
             echo '</div>';
         }
-
-        if (isset($_GET['status']) && $_GET['status'] == 'success') {
-            echo '<div class="success-message">Rejestracja zakończona pomyślnie! Możesz się teraz zalogować.</div>';
-        }
         ?>
 
-        <form action="process_registration.php" method="POST">
+        <form action="actions/auth/process_registration.php" method="POST">
             <div class="form-group">
                 <label for="username">
                     Nazwa użytkownika
@@ -37,12 +41,12 @@ include 'header.php';
                         <i class="fas fa-info-circle"></i>
                     </span>
                 </label>
-                <input type="text" id="username" name="username" required minlength="4" maxlength="32">
+                <input type="text" id="username" name="username" required minlength="4" maxlength="32" value="<?php echo htmlspecialchars(trim($old_data['username'] ?? '')); ?>">
             </div>
 
             <div class="form-group">
                 <label for="email">Adres e-mail</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" required value="<?php echo htmlspecialchars(trim($old_data['email'] ?? '')); ?>">
             </div>
 
             <div class="form-group password-group">
@@ -60,6 +64,13 @@ include 'header.php';
                 <input type="password" id="confirm_password" name="confirm_password" required minlength="12" maxlength="256">
             </div>
 
+            <div class="form-group form-group-checkbox">
+                <input type="checkbox" id="terms" name="terms" required>
+                <label for="terms" class="checkbox-label">
+                    Akceptuję <a href="terms.php" target="_blank">regulamin</a> serwisu.
+                </label>
+            </div>
+
             <button type="submit" class="submit-btn">Zarejestruj się</button>
         </form>
 
@@ -68,44 +79,6 @@ include 'header.php';
         </div>
     </div>
 </main>
-
-<style>
-    .error-message {
-        background-color: #ffdddd;
-        color: #b30000;
-        border: 1px solid #ff5c5c;
-        padding: 12px 15px;
-        margin: 15px 0;
-        border-radius: 8px;
-        font-weight: 600;
-        text-align: center;
-        animation: fadeIn 0.5s ease-in-out;
-    }
-
-    .success-message {
-        background-color: #e6ffe6;
-        color: #006600;
-        border: 1px solid #5cd65c;
-        padding: 12px 15px;
-        margin: 15px 0;
-        border-radius: 8px;
-        font-weight: 600;
-        text-align: center;
-        animation: fadeIn 0.5s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(-5px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-</style>
 
 </body>
 
