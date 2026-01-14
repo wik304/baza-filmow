@@ -35,8 +35,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['user_avatar_url'] = $row['avatar_url'];
 
             transfer_session_lists_to_db($row['id'], $conn);
+            include 'migrate_guest_reviews.php';
 
-            header("Location: ../../index.php");
+            header("Location: ../../index.php?action=login_success");
             exit();
         } else {
             $_SESSION['login_form_data'] = $_POST;

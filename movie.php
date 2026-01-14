@@ -29,21 +29,29 @@ if ($user_id) {
         $user_current_comment = $user_review['comment'] ?? '';
     }
     $stmt_user_rate->close();
+} elseif (isset($_SESSION['guest_reviews'][$movie_id])) {
+    $user_current_rating = (int)$_SESSION['guest_reviews'][$movie_id]['rating'];
+    $user_current_comment = $_SESSION['guest_reviews'][$movie_id]['comment'];
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST['rating']) || isset($_POST['comment'])) {
 
         if (isset($_POST['rating']) && (int)$_POST['rating'] === 0) {
-            $sql_delete = "DELETE FROM ratings WHERE user_id = ? AND movie_id = ?";
-            $stmt_delete = $conn->prepare($sql_delete);
-            $stmt_delete->bind_param("ii", $user_id, $movie_id);
-            if ($stmt_delete->execute()) {
-                $rating_message = "Twoja ocena została usunięta.";
+            if ($user_id) {
+                $sql_delete = "DELETE FROM ratings WHERE user_id = ? AND movie_id = ?";
+                $stmt_delete = $conn->prepare($sql_delete);
+                $stmt_delete->bind_param("ii", $user_id, $movie_id);
+                if ($stmt_delete->execute()) {
+                    $rating_message = "Twoja ocena została usunięta.";
+                } else {
+                    $rating_message = "Wystąpił błąd podczas usuwania oceny.";
+                }
+                $stmt_delete->close();
             } else {
-                $rating_message = "Wystąpił błąd podczas usuwania oceny.";
+                unset($_SESSION['guest_reviews'][$movie_id]);
+                $rating_message = "Twoja lokalna ocena została usunięta.";
             }
-            $stmt_delete->close();
             $user_current_rating = 0;
             $user_current_comment = '';
         } else {
@@ -55,46 +63,58 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && $user_id) {
             }
             $comment_from_form = isset($_POST['comment']) ? trim(strip_tags($_POST['comment'])) : $user_current_comment;
 
-            $rating_type = ($user_role === 'critic') ? 'critic' : 'user';
+            if ($user_id) {
+                $rating_type = ($user_role === 'critic') ? 'critic' : 'user';
 
-            $sql_rate = "INSERT INTO ratings (user_id, movie_id, rating, comment, rating_type) 
-                     VALUES (?, ?, ?, ?, ?)
-                     ON DUPLICATE KEY UPDATE rating = ?, comment = ?, rating_type = ?";
+                $sql_rate = "INSERT INTO ratings (user_id, movie_id, rating, comment, rating_type) 
+                         VALUES (?, ?, ?, ?, ?)
+                         ON DUPLICATE KEY UPDATE rating = ?, comment = ?, rating_type = ?";
 
-            $stmt_rate = $conn->prepare($sql_rate);
-            $stmt_rate->bind_param(
-                "iiississ",
-                $user_id,
-                $movie_id,
-                $rating_from_form,
-                $comment_from_form,
-                $rating_type,
-                $rating_from_form,
-                $comment_from_form,
-                $rating_type
-            );
+                $stmt_rate = $conn->prepare($sql_rate);
+                $stmt_rate->bind_param(
+                    "iiississ",
+                    $user_id,
+                    $movie_id,
+                    $rating_from_form,
+                    $comment_from_form,
+                    $rating_type,
+                    $rating_from_form,
+                    $comment_from_form,
+                    $rating_type
+                );
 
-            if ($stmt_rate->execute()) {
+                if ($stmt_rate->execute()) {
+                    $rating_message = "Twoja recenzja została zapisana!";
+                    
+                    // Odśwież dane filmu, aby przeliczyć średnią
+                    $sql_refresh = "SELECT * FROM movies WHERE id = ?";
+                    $stmt_refresh = $conn->prepare($sql_refresh);
+                    $stmt_refresh->bind_param("i", $movie_id);
+                    $stmt_refresh->execute();
+                    $movie = $stmt_refresh->get_result()->fetch_assoc();
+                    $stmt_refresh->close();
+                } else {
+                    $rating_message = "Wystąpił błąd. Spróbuj ponownie.";
+                }
+                $stmt_rate->close();
 
-                $rating_message = "Twoja recenzja została zapisana!";
-
+                check_and_grant_achievements($user_id, 'rate_movie', $conn);
+                if (!empty($comment_from_form)) {
+                    check_and_grant_achievements($user_id, 'write_review', $conn);
+                }
+            } else {
+                // Zapisz w sesji dla gościa
+                $_SESSION['guest_reviews'][$movie_id] = [
+                    'rating' => $rating_from_form,
+                    'comment' => $comment_from_form,
+                    'timestamp' => time()
+                ];
+                $rating_message = "Twoja recenzja została zapisana lokalnie! Zaloguj się, aby ją opublikować.";
+            }
+            
+            if (isset($rating_from_form)) {
                 $user_current_rating = $rating_from_form;
                 $user_current_comment = $comment_from_form;
-
-                $sql_refresh = "SELECT * FROM movies WHERE id = ?";
-                $stmt_refresh = $conn->prepare($sql_refresh);
-                $stmt_refresh->bind_param("i", $movie_id);
-                $stmt_refresh->execute();
-                $movie = $stmt_refresh->get_result()->fetch_assoc();
-                $stmt_refresh->close();
-            } else {
-                $rating_message = "Wystąpił błąd. Spróbuj ponownie.";
-            }
-            $stmt_rate->close();
-
-            check_and_grant_achievements($user_id, 'rate_movie', $conn);
-            if (!empty($comment_from_form)) {
-                check_and_grant_achievements($user_id, 'write_review', $conn);
             }
         }
     }
@@ -249,7 +269,7 @@ if ($user_id) {
                 <div class="box-header-left">
                     <img src="<?php echo htmlspecialchars($_SESSION['user_avatar_url'] ?? 'assets/img/avatar-default.png'); ?>" alt="avatar" class="box-avatar">
                     <span class="box-rate-text">Oceń film</span>
-                    <button type="button" class="remove-rating-btn <?php if (!($user_id && $user_current_rating > 0)) echo 'hidden'; ?>" id="remove-rating-btn" title="Usuń ocenę">&times;</button>
+                    <button type="button" class="remove-rating-btn <?php if (!($user_current_rating > 0)) echo 'hidden'; ?>" id="remove-rating-btn" title="Usuń ocenę">&times;</button>
                 </div>
                 <div class="box-header-actions">
                     <button class="action-btn btn-favorite <?php if ($is_favorite) echo 'active'; ?>" title="Dodaj do ulubionych" data-list-type="favorite">

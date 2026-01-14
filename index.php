@@ -149,11 +149,37 @@ include 'includes/header.php';
     }
     include 'includes/movie_slider.php';
     ?>
+
+    <div id="toast-notification" class="toast-notification"></div>
 </main>
 
 <?php
 $conn->close();
 ?>
+
+<style>
+    .toast-notification {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background-color: #0ccb4a;
+        color: #fff;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9999;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        font-weight: 600;
+        pointer-events: none;
+    }
+    .toast-notification.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -207,6 +233,34 @@ $conn->close();
                     });
             });
         });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const action = urlParams.get('action');
+        const toast = document.getElementById('toast-notification');
+        const username = <?php echo json_encode($_SESSION['username'] ?? ''); ?>;
+
+        if (action && toast) {
+            let message = '';
+            if (action === 'login_success') {
+                message = `Pomyślnie zalogowano! Witaj${username ? ' ' + username : ''}. Twoje oceny i listy zostały zsynchronizowane.`;
+            } else if (action === 'register_success') {
+                message = `Rejestracja udana! Witaj w Kinotece${username ? ', ' + username : ''}.`;
+            } else if (action === 'logout_success') {
+                message = 'Pomyślnie wylogowano. Do zobaczenia!';
+            }
+
+            if (message) {
+                toast.textContent = message;
+                toast.classList.add('show');
+
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 5000);
+            }
+        }
     });
 </script>
 

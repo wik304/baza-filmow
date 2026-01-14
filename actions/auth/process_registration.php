@@ -73,8 +73,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['user_avatar_url'] = 'assets/img/avatar-default.png';
 
         transfer_session_lists_to_db($new_user_id, $conn);
+        include 'migrate_guest_reviews.php';
 
-        header("Location: ../../index.php");
+        header("Location: ../../index.php?action=register_success");
         exit();
     } else {
         echo "Błąd: " . $stmt_insert->error;
